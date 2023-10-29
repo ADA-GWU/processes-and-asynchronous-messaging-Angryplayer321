@@ -5,13 +5,13 @@ import java.util.concurrent.TimeUnit;
 import java.util.random.RandomGenerator;
 
 
-public class Sender extends Thread {
+public class Messenger extends Thread {
 
 
    public static ArrayList<Connection> connections = new ArrayList<Connection>();
    public static boolean isMessageFound = false;
    Connection threadConnection;
-   public Sender(Connection threadConnection) {
+   public Messenger(Connection threadConnection) {
       this.threadConnection = threadConnection;
    }
 
@@ -99,7 +99,7 @@ public class Sender extends Thread {
             if (receivedTime == null && !isMessageFound) {
                isMessageFound = true;
                isAllFetched = false;
-               System.out.println(name + ": " + message);
+               System.out.println("Sender "+name + " sent " + message + " at time: " + sentTime);
                System.out.println();
                UpdateMessage(c, id);
                break;
@@ -138,21 +138,21 @@ public class Sender extends Thread {
    }
 
    private static void ManageDatabases(ArrayList<Connection> connections) {
-      ArrayList<Sender> threads = new ArrayList<Sender>();
+      ArrayList<Messenger> threads = new ArrayList<Messenger>();
       for (Connection connection : connections) {
-         threads.add(new Sender(connection));
+         threads.add(new Messenger(connection));
       }
       while (true) {
          try {
             TimeUnit.SECONDS.sleep(2);
 
-            for (Sender thread : threads) {
+            for (Messenger thread : threads) {
                thread.start();
                //System.out.println("Threads go brrr....");
             }
             for (int i = 0; i < threads.size(); i++) {
                threads.get(i).join();
-               threads.set(i, new Sender(threads.get(i).threadConnection));
+               threads.set(i, new Messenger(threads.get(i).threadConnection));
             }
             isMessageFound = false;
          } catch (Exception e) {
@@ -208,7 +208,7 @@ class SenderThread extends Thread {
             throw new RuntimeException(e);
          }
          if (!isWaiting) {
-            Sender.InsertIntoAsync(c, message);
+            Messenger.InsertIntoAsync(c, message);
             isWaiting = true;
          }
 

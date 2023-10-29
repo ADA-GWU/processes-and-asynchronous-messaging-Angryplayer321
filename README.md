@@ -4,7 +4,7 @@
 
 ## Overview
 
-This Java application demonstrates an asynchronous messaging system. It uses multithreading and PostgreSQL databases for message handling. The system includes two main components: `Sender` and `SenderThread`. `Sender` manages connections, sends messages, and handles database interactions. `SenderThread` instances represent individual sender threads.
+This Java application demonstrates an asynchronous messaging system. It uses multithreading and PostgreSQL databases for message handling. The system includes two main components: `Messenger` and `SenderThread`. `Messenger` manages connections, sends messages, and handles database interactions. `SenderThread` instances represent individual sender threads.
 
 ## Prerequisites
 
@@ -17,13 +17,13 @@ This Java application demonstrates an asynchronous messaging system. It uses mul
 1. **Compile the Java files:**
 
     ```java
-    javac Sender.java SenderThread.java
+    javac Messenger.java SenderThread.java
     ```
 
 2. **Run the program:**
 
     ```java
-    java Sender
+    java Messenger
     ```
 ## Usage
 
@@ -32,4 +32,4 @@ Messages will automatically be fetched. If you want to send message just type an
 
 - **Async Messaging:** The application allows sending and receiving messages asynchronously.
 - **Message Handling:** Messages are stored in a PostgreSQL database (`async_messages` table) with sender name, message, sent time, and received time.
-- **Multithreading:** `Sender` class manages multiple `SenderThread` instances, each handling a database connection and message sending
+- **Multithreading:** `Messenger` class manages multiple `SenderThread` instances, each handling a database connection and message sending
