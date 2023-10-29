@@ -1,50 +1,44 @@
 import java.sql.*;
+import java.util.ArrayList;
 import java.util.Scanner;
-import java.util.concurrent.*;
+import java.util.concurrent.TimeUnit;
+import java.util.random.RandomGenerator;
 
 
-public class Sender {
+public class Sender extends Thread {
+
+
+   public static ArrayList<Connection> connections = new ArrayList<Connection>();
+   public static boolean isMessageFound = false;
+   Connection threadConnection;
+   public Sender(Connection threadConnection) {
+      this.threadConnection = threadConnection;
+   }
+
    public static void main(String args[]) {
-      Connection c = ConnectToDatabase("34.76.123.81", "5432", "hw1", "dist_user", "dist_pass_123");
-      InsertIntoAsync(c, "Shukur");
-      InsertIntoAsync(c, "Salamatciliq");
-      ExecutorService executor = Executors.newFixedThreadPool(1);
-      CompletableFuture<Void> senderFuture = CompletableFuture.runAsync(() -> {
-         // Code for sending the message (replace this with your actual sending logic)
-         while(!FetchMessage(c, true))
-         {
-            try {
-               TimeUnit.SECONDS.sleep(2);
-            } catch (InterruptedException e) {
-               throw new RuntimeException(e);
-            }
-         }
-      }, executor);
 
-//      while(!FetchMessage(c))
-//      {
-//         try {
-//            TimeUnit.SECONDS.sleep(2);
-//         } catch (InterruptedException e) {
-//            throw new RuntimeException(e);
-//         }
-//      }
-      SelectAllFromAsync(c);
+      connections.add(ConnectToDatabase("34.76.123.81", "5432", "hw1", "dist_user", "dist_pass_123"));
+      connections.add(ConnectToDatabase("34.75.144.18", "5432", "hw1", "dist_user", "dist_pass_123"));
+      ArrayList<SenderThread> senderThreads = PrepareSender();
+      SendMessage(senderThreads, "Salam ayqa");
+      Thread thread = new Thread(() -> {
+         ManageDatabases(connections);
+      });
+      thread.start();
+
       Scanner sc = new Scanner(System.in);
-      System.out.println("Enter the message:");
+
+
+      //System.out.println("Enter the message:");
+
 
       while (true) {
-         String s =sc.nextLine();
-         if(s.equals("Exit")) {
-            executor.shutdown();
-            break;
-         }
-         else InsertIntoAsync(c, s);
+         String s = sc.nextLine();
+         SendMessage(senderThreads, s);
       }
    }
 
-   private static Connection ConnectToDatabase(String ip,String port, String databaseName, String user, String password)
-   {
+   private static Connection ConnectToDatabase(String ip, String port, String databaseName, String user, String password) {
       String url = "jdbc:postgresql://" + ip +":" + port + "/" +databaseName;
       Connection c = null;
       try {
@@ -63,8 +57,7 @@ public class Sender {
       return c;
    }
 
-   private static void SelectAllFromAsync(Connection c)
-   {
+   private static void SelectAllFromAsync(Connection c) {
       try{
          Statement statement = c.createStatement();
 
@@ -85,27 +78,26 @@ public class Sender {
          }
          rs.close();
          statement.close();
-      }
-      catch (SQLException sqlException)
-      {
+      } catch (SQLException sqlException) {
          System.out.println(sqlException.getMessage());
       }
    }
-   private static boolean FetchMessage(Connection c,boolean isEndless)
-   {
+
+   private static boolean FetchMessage(Connection c,boolean isEndless) {
       boolean isAllFetched = true;
       try{
          Statement statement = c.createStatement();
 
-         String sql = "select * from async_messages where received_time is null;";
+         String sql = "select * from async_messages where received_time is null and sender_name != 'Aykhan' limit 1 for update;";
          ResultSet rs = statement.executeQuery(sql);
          while ( rs.next() ) {
             int id = rs.getInt("record_id");
-            String  name = rs.getString("sender_name");
-            String  message = rs.getString("message");
+            String name = rs.getString("sender_name");
+            String message = rs.getString("message");
             Timestamp sentTime = rs.getTimestamp("sent_time");
             Timestamp receivedTime = rs.getTimestamp("received_time");
-            if(receivedTime==null) {
+            if (receivedTime == null && !isMessageFound) {
+               isMessageFound = true;
                isAllFetched = false;
                System.out.println(name + ": " + message);
                System.out.println();
@@ -118,38 +110,109 @@ public class Sender {
 //         if(isAllFetched) System.out.println("There is no messages.");
          if(isEndless) return false;
          return isAllFetched;
-      }
-      catch (SQLException sqlException)
-      {
+      } catch (SQLException sqlException) {
          System.out.println(sqlException.getMessage());
       }
       return false;
    }
 
-   private static void InsertIntoAsync(Connection c, String message)
-   {
+   public static void InsertIntoAsync(Connection c, String message) {
       try {
          Statement statement = c.createStatement();
          String sql = "INSERT INTO async_messages (sender_name,message,sent_time) "
-                 + "VALUES ('Ayxan', '"+ message+"', CURRENT_TIMESTAMP);";
+                 + "VALUES ('Aykhan', '" + message + "', CURRENT_TIMESTAMP);";
          statement.executeUpdate(sql);
-      }
-      catch (SQLException sqlException)
-      {
-         System.out.println(sqlException.getMessage());
-      }
-   }
-   private static void UpdateMessage(Connection c, int id)
-   {
-      try {
-         Statement statement = c.createStatement();
-         String sql = "UPDATE async_messages set received_time = current_timestamp where record_id="+id+";";
-         statement.executeUpdate(sql);
-      }
-      catch (SQLException sqlException)
-      {
+      } catch (SQLException sqlException) {
          System.out.println(sqlException.getMessage());
       }
    }
 
+   private static void UpdateMessage(Connection c, int id) {
+      try {
+         Statement statement = c.createStatement();
+         String sql = "UPDATE async_messages set received_time = current_timestamp where record_id=" + id + ";";
+         statement.executeUpdate(sql);
+      } catch (SQLException sqlException) {
+         System.out.println(sqlException.getMessage());
+      }
+   }
+
+   private static void ManageDatabases(ArrayList<Connection> connections) {
+      ArrayList<Sender> threads = new ArrayList<Sender>();
+      for (Connection connection : connections) {
+         threads.add(new Sender(connection));
+      }
+      while (true) {
+         try {
+            TimeUnit.SECONDS.sleep(2);
+
+            for (Sender thread : threads) {
+               thread.start();
+               //System.out.println("Threads go brrr....");
+            }
+            for (int i = 0; i < threads.size(); i++) {
+               threads.get(i).join();
+               threads.set(i, new Sender(threads.get(i).threadConnection));
+            }
+            isMessageFound = false;
+         } catch (Exception e) {
+            System.out.println(e);
+         }
+      }
+   }
+
+   public static ArrayList<SenderThread> PrepareSender() {
+      ArrayList<SenderThread> senderThreads = new ArrayList<SenderThread>();
+      for (Connection connection : connections) {
+         senderThreads.add(new SenderThread(connection));
+         senderThreads.get(senderThreads.size() - 1).start();
+      }
+      return senderThreads;
+   }
+
+   public static void SendMessage(ArrayList<SenderThread> senderThreads, String message) {
+      SenderThread thread = senderThreads.get(RandomGenerator.getDefault().nextInt() % senderThreads.size());
+      thread.message = message;
+      thread.isWaiting = false;
+   }
+
+   public void run() {
+      //System.out.println("salam");
+      FetchMessage(threadConnection, false);
+
+   }
 }
+
+class SenderThread extends Thread {
+   public Connection c;
+   public String message;
+   public boolean isWaiting = true;
+
+   public SenderThread(Connection c) {
+      this.c = c;
+   }
+
+   public void setMessage(String message) {
+      this.message = message;
+   }
+
+   public void setWaiting(boolean waiting) {
+      isWaiting = waiting;
+   }
+
+   public void run() {
+      while (true) {
+         try {
+            TimeUnit.NANOSECONDS.sleep(1);
+         } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+         }
+         if (!isWaiting) {
+            Sender.InsertIntoAsync(c, message);
+            isWaiting = true;
+         }
+
+      }
+   }
+}
+
